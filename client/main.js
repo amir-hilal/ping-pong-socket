@@ -35,7 +35,9 @@ class LatencyTester {
   }
 
   connectToServer() {
-    this.socket = io();
+    this.socket = io('https://ping-pong-socket.onrender.com', {
+      transports: ['websocket'], // optional but better for latency tests
+    });
 
     this.socket.on('connect', () => {
       this.log('Connected to server');

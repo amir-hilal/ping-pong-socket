@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: '*', // later you can restrict to your Netlify URL
+    origin: 'https://dapper-piroshki-f8eedd.netlify.app',
     methods: ['GET', 'POST'],
   },
 });

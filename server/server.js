@@ -12,7 +12,7 @@ const io = socketIo(server, {
   },
 });
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 10000;
 
 // you no longer need to serve the client from here for Netlify,
 // but it is harmless to keep this line

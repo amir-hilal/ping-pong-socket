@@ -1,4 +1,4 @@
-const { RTCPeerConnection } = require('wrtc');
+const { RTCPeerConnection, RTCIceCandidate } = require('werift');
 
 /**
  * Get ICE server configuration
@@ -41,17 +41,17 @@ function createNetworkTestPeer(options = {}) {
   onLog('WebRTC peer connection created');
 
   // Handle ICE candidates
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      onLog(`ICE candidate generated: ${event.candidate.candidate}`);
-      onIceCandidate(event.candidate);
-    } else {
-      onLog('ICE candidate gathering complete');
+  peerConnection.onIceCandidate.subscribe((candidate) => {
+    if (candidate) {
+      onLog(`ICE candidate generated`);
+      // Convert werift candidate to standard format
+      const candidateInit = candidate.toJSON();
+      onIceCandidate(candidateInit);
     }
-  };
+  });
 
   // Handle connection state changes
-  peerConnection.onconnectionstatechange = () => {
+  peerConnection.onConnectionStateChange.subscribe(() => {
     const state = peerConnection.connectionState;
     onLog(`Connection state changed to: ${state}`);
     onConnectionStateChange(state);
@@ -60,38 +60,40 @@ function createNetworkTestPeer(options = {}) {
     if (state === 'failed' || state === 'closed') {
       cleanup();
     }
-  };
+  });
 
   // Handle ICE connection state changes
-  peerConnection.oniceconnectionstatechange = () => {
+  peerConnection.iceConnectionStateChange.subscribe(() => {
     onLog(`ICE connection state: ${peerConnection.iceConnectionState}`);
-  };
+  });
 
   // Handle incoming data channel from client
-  peerConnection.ondatachannel = (event) => {
-    dataChannel = event.channel;
+  peerConnection.onDataChannel.subscribe((channel) => {
+    dataChannel = channel;
     onLog(`Data channel received: ${dataChannel.label}`);
 
     // Handle data channel open
-    dataChannel.onopen = () => {
+    dataChannel.onOpen.subscribe(() => {
       onLog(`Data channel opened: ${dataChannel.label}`);
-    };
+    });
 
     // Handle data channel close
-    dataChannel.onclose = () => {
+    dataChannel.onClose.subscribe(() => {
       onLog(`Data channel closed: ${dataChannel.label}`);
       dataChannel = null;
-    };
+    });
 
     // Handle data channel errors
-    dataChannel.onerror = (error) => {
-      onLog(`Data channel error: ${error.message || error}`);
-    };
+    dataChannel.onError.subscribe((error) => {
+      onLog(`Data channel error: ${error}`);
+    });
 
     // Handle incoming messages on data channel
-    dataChannel.onmessage = (event) => {
+    dataChannel.onMessage.subscribe((data) => {
       try {
-        const message = JSON.parse(event.data);
+        const messageStr =
+          typeof data === 'string' ? data : new TextDecoder().decode(data);
+        const message = JSON.parse(messageStr);
 
         // Echo ping messages back as pong
         if (message.type === 'ping') {
@@ -110,8 +112,8 @@ function createNetworkTestPeer(options = {}) {
       } catch (error) {
         onLog(`Error parsing data channel message: ${error.message}`);
       }
-    };
-  };
+    });
+  });
 
   /**
    * Handle offer from client and create answer
@@ -148,16 +150,21 @@ function createNetworkTestPeer(options = {}) {
 
   /**
    * Add ICE candidate from client
-   * @param {Object} candidate - ICE candidate object
+   * @param {Object} candidateInit - ICE candidate object
    */
-  async function addIceCandidate(candidate) {
+  async function addIceCandidate(candidateInit) {
     if (isClosed) {
       onLog('Cannot add ICE candidate: peer connection is closed');
       return;
     }
 
     try {
-      if (candidate) {
+      if (candidateInit) {
+        const candidate = new RTCIceCandidate(
+          candidateInit.candidate,
+          candidateInit.sdpMid,
+          candidateInit.sdpMLineIndex
+        );
         await peerConnection.addIceCandidate(candidate);
         onLog('ICE candidate added successfully');
       }

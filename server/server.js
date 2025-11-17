@@ -26,7 +26,7 @@ function getMessageSize(data) {
 
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
-  
+
   // Store WebRTC peer instance for this socket connection
   let webrtcPeer = null;
 
@@ -60,7 +60,7 @@ io.on('connection', (socket) => {
   // ==========================================
   // WebRTC Network Test Signaling
   // ==========================================
-  
+
   /**
    * Handle WebRTC offer from client
    * Creates a new peer connection and sends back an answer
@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
   socket.on('webrtc-offer', async (message) => {
     try {
       console.log(`[${socket.id}] WebRTC offer received`);
-      
+
       // Clean up existing peer if any
       if (webrtcPeer) {
         console.log(`[${socket.id}] Closing existing WebRTC peer`);
@@ -78,12 +78,12 @@ io.on('connection', (socket) => {
       // Create new WebRTC peer for this client
       webrtcPeer = createNetworkTestPeer({
         onLog: (msg) => console.log(`[${socket.id}] ${msg}`),
-        
+
         onAnswer: (sdp) => {
           // Answer is sent via handleOffer, but this callback can be used for logging
           console.log(`[${socket.id}] Answer created`);
         },
-        
+
         onIceCandidate: (candidate) => {
           // Send ICE candidate to client
           socket.emit('webrtc-ice-candidate', {
@@ -91,13 +91,13 @@ io.on('connection', (socket) => {
           });
           console.log(`[${socket.id}] ICE candidate sent to client`);
         },
-        
+
         onConnectionStateChange: (state) => {
           console.log(`[${socket.id}] WebRTC connection state: ${state}`);
-          
+
           // Notify client of connection state changes
           socket.emit('webrtc-connection-state', { state });
-          
+
           // Clean up on failure
           if (state === 'failed' || state === 'closed') {
             if (webrtcPeer) {
@@ -134,7 +134,9 @@ io.on('connection', (socket) => {
   socket.on('webrtc-ice-candidate', async (message) => {
     try {
       if (!webrtcPeer) {
-        console.warn(`[${socket.id}] Received ICE candidate but no peer exists`);
+        console.warn(
+          `[${socket.id}] Received ICE candidate but no peer exists`
+        );
         return;
       }
 
@@ -150,7 +152,7 @@ io.on('connection', (socket) => {
   // ==========================================
   socket.on('disconnect', () => {
     console.log(`Client disconnected: ${socket.id}`);
-    
+
     // Clean up WebRTC peer if it exists
     if (webrtcPeer) {
       console.log(`[${socket.id}] Cleaning up WebRTC peer on disconnect`);

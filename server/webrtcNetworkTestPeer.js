@@ -9,10 +9,7 @@ function getIceConfig() {
   return {
     iceServers: [
       {
-        urls: [
-          'stun:stun.l.google.com:19302',
-          'stun:stun1.l.google.com:19302',
-        ],
+        urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
       },
     ],
   };
@@ -20,7 +17,7 @@ function getIceConfig() {
 
 /**
  * Creates a WebRTC peer connection for network quality testing
- * 
+ *
  * @param {Object} options - Configuration options
  * @param {Function} options.onLog - Callback for logging (message) => void
  * @param {Function} options.onAnswer - Callback when answer is ready (sdp) => void
@@ -95,14 +92,14 @@ function createNetworkTestPeer(options = {}) {
     dataChannel.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        
+
         // Echo ping messages back as pong
         if (message.type === 'ping') {
           const pongMessage = {
             type: 'pong',
             t: message.t, // Echo back the same timestamp
           };
-          
+
           if (dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify(pongMessage));
             onLog(`Ping received (t=${message.t}), pong sent`);

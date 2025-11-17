@@ -70,27 +70,35 @@ function createNetworkTestPeer({
 
   // browser creates the dc, we just accept it
   pc.onDataChannel.subscribe((channel) => {
+    // In werift, the argument is the RTCDataChannel itself
     dataChannel = channel;
     onLog(`Data channel received: ${channel.label}`);
 
-    channel.onOpen.subscribe(() => {
+    channel.onopen = () => {
       onLog(`Data channel opened: ${channel.label}`);
-    });
+    };
 
-    channel.onClose.subscribe(() => {
+    channel.onclose = () => {
       onLog(`Data channel closed: ${channel.label}`);
       dataChannel = null;
-    });
+    };
 
-    channel.onError.subscribe((err) => {
-      onLog(`Data channel error: ${err}`);
-    });
+    channel.onerror = (err) => {
+      onLog(`Data channel error: ${err?.message ?? err}`);
+    };
 
-    channel.onMessage.subscribe((data) => {
+    channel.onmessage = (event) => {
       try {
+        const raw = event.data;
         const str =
-          typeof data === 'string' ? data : new TextDecoder().decode(data);
+          typeof raw === 'string'
+            ? raw
+            : Buffer.isBuffer(raw)
+            ? raw.toString('utf8')
+            : new TextDecoder().decode(raw);
+
         const msg = JSON.parse(str);
+
         if (msg.type === 'ping') {
           const pong = { type: 'pong', timestamp: msg.timestamp };
           if (dataChannel && dataChannel.readyState === 'open') {
@@ -103,7 +111,7 @@ function createNetworkTestPeer({
       } catch (e) {
         onLog(`Error parsing data channel message: ${e.message}`);
       }
-    });
+    };
   });
 
   async function handleOffer(offerSdp) {

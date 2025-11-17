@@ -165,4 +165,6 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   console.log(`Socket.IO server running on port ${PORT}`);
+  // for localhost:
+  console.log(`http://localhost:${PORT}`);
 });

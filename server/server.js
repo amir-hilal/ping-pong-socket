@@ -18,22 +18,36 @@ const PORT = process.env.PORT || 10000;
 // but it is harmless to keep this line
 app.use(express.static(path.join(__dirname, '../client')));
 
+// Helper function to calculate message size in bytes
+function getMessageSize(data) {
+  return Buffer.byteLength(JSON.stringify(data), 'utf8');
+}
+
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
   socket.on('ping', (data) => {
     const serverReceivedAt = Date.now();
+    const receivedSize = getMessageSize(data);
+    
     console.log(
-      `Ping received, Seq: ${data.sequenceNumber}, ClientSentAt: ${data.clientSentAt}`
+      `Ping received, Seq: ${data.sequenceNumber}, ClientSentAt: ${data.clientSentAt}, Size: ${receivedSize} bytes`
     );
 
     const serverSentAt = Date.now();
-    socket.emit('pong', {
+    const pongData = {
       sequenceNumber: data.sequenceNumber,
       clientSentAt: data.clientSentAt,
       serverReceivedAt,
       serverSentAt,
-    });
+    };
+    
+    const sentSize = getMessageSize(pongData);
+    socket.emit('pong', pongData);
+    
+    console.log(
+      `Pong sent, Seq: ${data.sequenceNumber}, Size: ${sentSize} bytes`
+    );
   });
 
   socket.on('disconnect', () => {

@@ -115,6 +115,7 @@ io.on('connection', (socket) => {
       socket.emit('webrtc-answer', {
         payload: {
           sdp: answerSdp,
+          type: 'answer',
         },
       });
 

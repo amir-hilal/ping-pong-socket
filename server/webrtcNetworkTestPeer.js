@@ -25,8 +25,6 @@ function getIceConfig() {
  * @param {Function} options.onConnectionStateChange - Callback for connection state changes (state) => void
  * @returns {Object} Peer interface with handleOffer, addIceCandidate, and close methods
  */
-// webrtcNetworkTestPeer.js
-const { RTCPeerConnection, RTCIceCandidate } = require('werift');
 
 function getIceConfig() {
   return {

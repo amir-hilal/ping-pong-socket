@@ -25,120 +25,104 @@ function getIceConfig() {
  * @param {Function} options.onConnectionStateChange - Callback for connection state changes (state) => void
  * @returns {Object} Peer interface with handleOffer, addIceCandidate, and close methods
  */
-function createNetworkTestPeer(options = {}) {
-  const {
-    onLog = () => {},
-    onAnswer = () => {},
-    onIceCandidate = () => {},
-    onConnectionStateChange = () => {},
-  } = options;
+// webrtcNetworkTestPeer.js
+const { RTCPeerConnection, RTCIceCandidate } = require('werift');
 
-  // Create RTCPeerConnection with ICE configuration
-  const peerConnection = new RTCPeerConnection(getIceConfig());
+function getIceConfig() {
+  return {
+    iceServers: [
+      {
+        urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+      },
+    ],
+  };
+}
+
+function createNetworkTestPeer({
+  onLog = () => {},
+  onAnswer = () => {},
+  onIceCandidate = () => {},
+  onConnectionStateChange = () => {},
+} = {}) {
+  const pc = new RTCPeerConnection(getIceConfig());
   let dataChannel = null;
   let isClosed = false;
 
   onLog('WebRTC peer connection created');
 
-  // Handle ICE candidates
-  peerConnection.onIceCandidate.subscribe((candidate) => {
-    if (candidate) {
-      onLog(`ICE candidate generated`);
-      // Convert werift candidate to standard format
-      const candidateInit = candidate.toJSON();
-      onIceCandidate(candidateInit);
-    }
+  pc.onIceCandidate.subscribe((candidate) => {
+    if (!candidate) return;
+    const candidateInit = candidate.toJSON();
+    onLog('ICE candidate generated');
+    onIceCandidate(candidateInit);
   });
 
-  // Handle connection state changes
-  peerConnection.connectionStateChange.subscribe(() => {
-    const state = peerConnection.connectionState;
+  pc.connectionStateChange.subscribe(() => {
+    const state = pc.connectionState;
     onLog(`Connection state changed to: ${state}`);
     onConnectionStateChange(state);
-
     if (state === 'failed' || state === 'closed') {
       cleanup();
     }
   });
 
-  // Handle ICE connection state changes
-  peerConnection.iceConnectionStateChange.subscribe(() => {
-    onLog(`ICE connection state: ${peerConnection.iceConnectionState}`);
+  pc.iceConnectionStateChange.subscribe(() => {
+    onLog(`ICE connection state: ${pc.iceConnectionState}`);
   });
 
-  // Handle incoming data channel from client
-  peerConnection.onDataChannel.subscribe((channel) => {
+  // browser creates the dc, we just accept it
+  pc.onDataChannel.subscribe((channel) => {
     dataChannel = channel;
-    onLog(`Data channel received: ${dataChannel.label}`);
+    onLog(`Data channel received: ${channel.label}`);
 
-    // Handle data channel open
-    dataChannel.onOpen.subscribe(() => {
-      onLog(`Data channel opened: ${dataChannel.label}`);
+    channel.onOpen.subscribe(() => {
+      onLog(`Data channel opened: ${channel.label}`);
     });
 
-    // Handle data channel close
-    dataChannel.onClose.subscribe(() => {
-      onLog(`Data channel closed: ${dataChannel.label}`);
+    channel.onClose.subscribe(() => {
+      onLog(`Data channel closed: ${channel.label}`);
       dataChannel = null;
     });
 
-    // Handle data channel errors
-    dataChannel.onError.subscribe((error) => {
-      onLog(`Data channel error: ${error}`);
+    channel.onError.subscribe((err) => {
+      onLog(`Data channel error: ${err}`);
     });
 
-    // Handle incoming messages on data channel
-    dataChannel.onMessage.subscribe((data) => {
+    channel.onMessage.subscribe((data) => {
       try {
-        const messageStr =
+        const str =
           typeof data === 'string' ? data : new TextDecoder().decode(data);
-        const message = JSON.parse(messageStr);
-
-        // Echo ping messages back as pong
-        if (message.type === 'ping') {
-          const pongMessage = {
-            type: 'pong',
-            timestamp: message.timestamp,
-          };
+        const msg = JSON.parse(str);
+        if (msg.type === 'ping') {
+          const pong = { type: 'pong', timestamp: msg.timestamp };
           if (dataChannel && dataChannel.readyState === 'open') {
-            dataChannel.send(JSON.stringify(pongMessage));
-            onLog(`Ping received (timestamp=${message.timestamp}), pong sent`);
+            dataChannel.send(JSON.stringify(pong));
+            onLog(`Ping received (timestamp=${msg.timestamp}), pong sent`);
           }
         } else {
-          onLog(`Unexpected message type: ${message.type}`);
+          onLog(`Unexpected message type: ${msg.type}`);
         }
-      } catch (error) {
-        onLog(`Error parsing data channel message: ${error.message}`);
+      } catch (e) {
+        onLog(`Error parsing data channel message: ${e.message}`);
       }
     });
   });
 
-  /**
-   * Handle offer from client and create answer
-   * @param {string} offerSdp - SDP offer from client
-   * @returns {Promise<string>} Answer SDP
-   */
   async function handleOffer(offerSdp) {
-    if (isClosed) {
-      throw new Error('Peer connection is closed');
-    }
+    if (isClosed) throw new Error('Peer connection is closed');
 
     try {
       onLog('Setting remote description (offer)');
-      await peerConnection.setRemoteDescription({
-        type: 'offer',
-        sdp: offerSdp,
-      });
+      await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
 
       onLog('Creating answer');
-      const answer = await peerConnection.createAnswer();
+      const answer = await pc.createAnswer();
 
       onLog('Setting local description (answer)');
-      await peerConnection.setLocalDescription(answer);
+      await pc.setLocalDescription(answer);
 
       onLog('Answer created successfully');
       onAnswer(answer.sdp);
-
       return answer.sdp;
     } catch (error) {
       onLog(`Error handling offer: ${error.message}`);
@@ -146,80 +130,62 @@ function createNetworkTestPeer(options = {}) {
     }
   }
 
-  /**
-   * Add ICE candidate from client
-   * @param {Object} candidateInit - ICE candidate object
-   */
   async function addIceCandidate(candidateInit) {
     if (isClosed) {
       onLog('Cannot add ICE candidate: peer connection is closed');
       return;
     }
+    if (!candidateInit) return;
 
     try {
-      if (candidateInit) {
-        const candidate = new RTCIceCandidate(
-          candidateInit.candidate,
-          candidateInit.sdpMid,
-          candidateInit.sdpMLineIndex
-        );
-        await peerConnection.addIceCandidate(candidate);
-        onLog('ICE candidate added successfully');
-      }
+      const candidate = new RTCIceCandidate(
+        candidateInit.candidate,
+        candidateInit.sdpMid,
+        candidateInit.sdpMLineIndex
+      );
+      await pc.addIceCandidate(candidate);
+      onLog('ICE candidate added successfully');
     } catch (error) {
       onLog(`Error adding ICE candidate: ${error.message}`);
     }
   }
 
-  /**
-   * Clean up resources
-   */
   function cleanup() {
     if (isClosed) return;
-
-    onLog('Cleaning up peer connection');
     isClosed = true;
+    onLog('Cleaning up peer connection');
 
-    // Close data channel if open
     if (dataChannel) {
       try {
         dataChannel.close();
-      } catch (error) {
-        onLog(`Error closing data channel: ${error.message}`);
+      } catch (e) {
+        onLog(`Error closing data channel: ${e.message}`);
       }
       dataChannel = null;
     }
 
-    // Close peer connection
     try {
-      peerConnection.close();
-    } catch (error) {
-      onLog(`Error closing peer connection: ${error.message}`);
+      pc.close();
+    } catch (e) {
+      onLog(`Error closing peer connection: ${e.message}`);
     }
   }
 
-  /**
-   * Close the peer connection
-   */
   function close() {
     cleanup();
   }
 
-  // Return public interface
   return {
     handleOffer,
     addIceCandidate,
     close,
     get connectionState() {
-      return peerConnection.connectionState;
+      return pc.connectionState;
     },
     get iceConnectionState() {
-      return peerConnection.iceConnectionState;
+      return pc.iceConnectionState;
     },
   };
 }
 
-module.exports = {
-  createNetworkTestPeer,
-  getIceConfig,
-};
+module.exports = { createNetworkTestPeer, getIceConfig };

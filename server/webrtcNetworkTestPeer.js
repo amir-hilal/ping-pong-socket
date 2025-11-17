@@ -51,12 +51,11 @@ function createNetworkTestPeer(options = {}) {
   });
 
   // Handle connection state changes
-  peerConnection.onConnectionStateChange.subscribe(() => {
+  peerConnection.connectionStateChange.subscribe(() => {
     const state = peerConnection.connectionState;
     onLog(`Connection state changed to: ${state}`);
     onConnectionStateChange(state);
 
-    // Clean up on failure or closure
     if (state === 'failed' || state === 'closed') {
       cleanup();
     }
@@ -99,12 +98,11 @@ function createNetworkTestPeer(options = {}) {
         if (message.type === 'ping') {
           const pongMessage = {
             type: 'pong',
-            t: message.t, // Echo back the same timestamp
+            timestamp: message.timestamp,
           };
-
           if (dataChannel && dataChannel.readyState === 'open') {
             dataChannel.send(JSON.stringify(pongMessage));
-            onLog(`Ping received (t=${message.t}), pong sent`);
+            onLog(`Ping received (timestamp=${message.timestamp}), pong sent`);
           }
         } else {
           onLog(`Unexpected message type: ${message.type}`);
